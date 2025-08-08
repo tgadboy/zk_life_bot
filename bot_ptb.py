@@ -12,7 +12,8 @@ from telegram.ext import (
 )
 
 # ============ НАСТРОЙКИ ============
-BOT_TOKEN   = "8305074407:AAF-AkXy1R9Bjck2Dv8o706QjxeJtzxeJ0g"
+import os
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID  = "@zk_baraholka"      # или числовой -100xxxxxxxxx
 ADMIN_ID    = 6233188035            # твой Telegram user id (число)
 

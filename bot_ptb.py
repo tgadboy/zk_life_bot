@@ -1,4 +1,4 @@
-# pip install python-telegram-bot==20.3
+ll python-telegram-bot==20.3
 import re
 import logging
 from typing import Dict, List, Tuple
@@ -10,44 +10,6 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler,
     CallbackQueryHandler, PreCheckoutQueryHandler, ContextTypes, filters
 )
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CommandHandler, CallbackQueryHandler, ContextTypes
-
-WELCOME_DEFAULT = "👋 Привет! Это бот «ЖК Барахолка». Нажмите «Подать объявление» ниже."
-WELCOME_FROM_CHANNEL = "🎉 Вы пришли из канала «ЖК Барахолка». Готовы подать объявление? Жмите ниже."
-
-def _menu_kb(bot_username: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 Подать объявление", callback_data="start_new")],
-        [InlineKeyboardButton("📜 Правила", url="https://t.me/zk_baraholka/1")],  # при желании замени ссылку
-    ])
-
-# /start c поддержкой deep-link: ?start=from_channel
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    args = context.args or []
-    source = args[0] if args else ""
-    me = await context.bot.get_me()
-    text = WELCOME_FROM_CHANNEL if source == "from_channel" else WELCOME_DEFAULT
-    await update.message.reply_text(text, reply_markup=_menu_kb(me.username))
-
-# Сообщение с кнопкой (для закрепа)
-async def getbutton(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    me = await context.bot.get_me()
-    deep_link = f"https://t.me/{me.username}?start=from_channel"
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("📩 Подать объявление", url=deep_link)]])
-    await update.message.reply_text(
-        "Подать объявление в «ЖК Барахолка» — нажмите кнопку ниже:",
-        reply_markup=kb,
-    )
-
-# Обработка клика по «📝 Подать объявление»
-async def menu_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    if q.data == "start_new":
-        # Простой вариант: попросим ввести /new (если у тебя уже есть сценарий /new)
-        await q.message.reply_text("Окей! Нажмите команду /new, чтобы подать объявление.")
-        # Если захочешь — позже привяжём кнопку напрямую к твоей функции cmd_new.
 
 # ============ НАСТРОЙКИ ============
 import os
@@ -345,13 +307,9 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("getbutton", cmd_getbutton))
     app.add_handler(conv)
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("getbutton", getbutton))
-app.add_handler(CallbackQueryHandler(menu_callbacks, pattern="^(start_new)$"))
 
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
-

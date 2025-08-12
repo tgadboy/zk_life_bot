@@ -1,16 +1,26 @@
 # pip install python-telegram-bot==20.3
 import re
-import logging
+import os
 import random
-
+import logging
 from typing import Dict, List, Tuple
 
 from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, ReplyKeyboardMarkup
+    Update,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    LabeledPrice,
+    ReplyKeyboardMarkup,
 )
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler,
-    CallbackQueryHandler, PreCheckoutQueryHandler, ContextTypes, filters
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    CallbackQueryHandler,
+    PreCheckoutQueryHandler,
+    ContextTypes,
+    filters,
 )
 
 # ============ НАСТРОЙКИ ============
@@ -563,6 +573,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

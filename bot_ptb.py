@@ -75,6 +75,7 @@ GAME_BTN_TL  = "✅❌ Правда или ложь"
 GAME_BTN_RPS = "✊✋✌️ Камень, ножницы, бумага"
 GAME_BTN_FACT= "😄 Случайный факт или шутка"
 
+# 1. Правда или ложь (объединённый список)
 TRUTH_OR_LIE = [
     ("Солнце — это звезда.", True),
     ("У улитки четыре сердца.", False),
@@ -82,14 +83,29 @@ TRUTH_OR_LIE = [
     ("Человек использует 100% мозга постоянно.", False),
     ("Пингвины живут на Северном полюсе.", False),
     ("Молния может ударить в одно место дважды.", True),
+    ("Земля вращается вокруг Солнца.", True),
+    ("В Антарктиде есть медведи.", False),
+    ("Вода кипит при 50°C.", False),
+    ("Кошки могут мурлыкать.", True),
 ]
 
+# 2. Камень, ножницы, бумага
+RPS_CHOICES = ["✊ Камень", "✋ Бумага", "✌️ Ножницы"]
+
+# 3. Случайный факт или шутка (объединённый список)
 FACTS_OR_JOKES = [
     "Факт: Самая короткая война в истории длилась около 38 минут.",
     "Шутка: — Доктор, я вижу будущее! — И как оно? — Расплывчатое… у вас очки запотели.",
     "Факт: У осьминога три сердца.",
     "Шутка: Моя диета проста: если я не вижу еды — я сплю.",
     "Факт: Мед — единственный продукт, который не портится.",
+    "🐝 Пчёлы могут узнавать лица людей.",
+    "🌍 В мире больше кур, чем людей.",
+    "😂 Почему утка перешла дорогу? Чтобы попасть на другую сторону!",
+    "🪐 На Юпитере идёт дождь из алмазов.",
+    "😄 — Что сказал ноль восьмёрке? — Классный ремень!",
+]
+# ===== Конец блока игр =====
 
 
 from telegram import ReplyKeyboardMarkup
@@ -206,8 +222,9 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 10) Поиграть → заглушка/мини-активность
-   if msg == BTN_PLAY:
-    return await show_games_menu(update, context)
+    if msg == "🎮 Поиграть":
+        await handle_play(update, context)
+
 
 
     # 11) Задать вопрос → контакт/форма
@@ -517,6 +534,46 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Отменено.")
     return ConversationHandler.END
 
+import random
+
+async def handle_play(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = [
+        [InlineKeyboardButton(GAME_BTN_TL, callback_data="game_tl")],
+        [InlineKeyboardButton(GAME_BTN_RPS, callback_data="game_rps")],
+        [InlineKeyboardButton(GAME_BTN_FACT, callback_data="game_fact")],
+    ]
+    await update.message.reply_text("Выбери игру:", reply_markup=InlineKeyboardMarkup(kb))
+
+
+async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+
+    if q.data == "game_tl":
+        question, answer = random.choice(TRUTH_OR_LIE)
+        kb = [
+            [InlineKeyboardButton("✅ Правда", callback_data=f"tl_{answer}_yes"),
+             InlineKeyboardButton("❌ Ложь", callback_data=f"tl_{answer}_no")]
+        ]
+        await q.edit_message_text(question, reply_markup=InlineKeyboardMarkup(kb))
+
+    elif q.data.startswith("tl_"):
+        correct_answer = q.data.split("_")[1] == "True"
+        user_choice = q.data.endswith("yes")
+        if user_choice == correct_answer:
+            await q.edit_message_text("🎉 Верно!")
+        else:
+            await q.edit_message_text("❌ Неверно!")
+
+    elif q.data == "game_rps":
+        choices = ["✊ Камень", "✋ Бумага", "✌️ Ножницы"]
+        bot_choice = random.choice(choices)
+        await q.edit_message_text(f"Я выбрал: {bot_choice}")
+
+    elif q.data == "game_fact":
+        await q.edit_message_text(random.choice(FACTS_OR_JOKES))
+
+
 
 # Сообщение с кнопкой «Начни здесь» — для закрепа
 async def cmd_getbutton(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -567,12 +624,17 @@ def main():
     app.add_handler(conv)
     
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
-    
+
+
+    app.add_handler(CommandHandler("play", handle_play))
+    app.add_handler(CallbackQueryHandler(game_callback, pattern="^game_|^tl_"))
+
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -53,19 +53,21 @@ def auto_moderate(text: str) -> Tuple[bool, str]:
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     source = " ".join(context.args) if context.args else ""
-    WELCOME_TEXT = (
-        "Привет! 👋\n\n"
-        "Вы пришли из канала «ЖК Лайв».\n"
-        "Здесь можно отправить объявление на публикацию.\n\n"
-        "Нажмите /new, чтобы создать объявление.\n"
-        "Отправьте текст и фото — я проверю и отправлю в канал."
-    )
+    if source == "from_channel":
+        text = (
+            "Привет! 👋\n\n"
+            "Вы пришли из канала «ЖК Лайв».\n"
+            "Здесь можно отправить объявление на публикацию.\n\n"
+            "Нажмите /new, чтобы создать объявление — я подскажу шаги."
+        )
+    else:
+        text = (
+            "Привет! 👋\n\n"
+            "Я помогу опубликовать объявление в «ЖК Лайв».\n\n"
+            "Нажмите /new, чтобы создать объявление."
+        )
+    await update.message.reply_text(text)
 
-    # Можно при желании различать тексты:
-    # if source == "from_channel":
-    #     WELCOME_TEXT = "Привет из канала «ЖК Лайв»! ..."
-
-    await update.message.reply_text(WELCOME_TEXT)
 
 
 
@@ -278,9 +280,9 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Сообщение с кнопкой «Начни здесь» — для закрепа
 async def cmd_getbutton(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    me = await context.bot.get_me()
+    me = await context.bot.get_me()  # у me.username всегда актуальное имя бота
     kb = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Начни здесь", url="https://t.me/zk_life_bot?start=from_channel")]]
+        [[InlineKeyboardButton("Начни здесь", url=f"https://t.me/{me.username}?start=from_channel")]]
     )
     await update.message.reply_text(
         "📢 Разместить объявление в «ЖК Барахолка»\n\nНажмите кнопку ниже, чтобы отправить объявление боту.",
@@ -324,5 +326,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 

@@ -57,11 +57,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     source = " ".join(context.args) if context.args else ""
     text = (
         "<b> Привет! 👋 </b>\n\n"
-        "<b> Я Лайвбот — твой помощник на территории ЖК.</b>\n\n"
+        "Я Лайвбот — твой помощник на территории ЖК.\n\n"
         "Я помогу найти то, что ты ищешь.\n"
         "Если чего-то нет в списке — ты можешь написать администратору.\n\n"
-        "Нажми на ту кнопку, тема которой тебя интересует или если хочешь перейди назад в закреп канала нажми по ссылке."
-         '📌 <a href="https://t.me/zk_baraholka/7">Вернуться к каналу</a>'
+        "Нажми на ту кнопку, тема которой тебя интересует или если хочешь перейди назад в закреп канала нажми "
+         '<a href="https://t.me/zk_baraholka/7">Вернуться к каналу</a>'
     )
 
     # Кнопки по две в ряд с эмодзи
@@ -76,8 +76,12 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="HTML")
-
+    await update.message.reply_text(
+        text,
+        reply_markup=reply_markup,
+        parse_mode="HTML",
+        disable_web_page_preview=True
+    )
 
 
 
@@ -339,6 +343,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

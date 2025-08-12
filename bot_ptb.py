@@ -1,6 +1,8 @@
 # pip install python-telegram-bot==20.3
 import re
 import logging
+import random
+
 from typing import Dict, List, Tuple
 
 from telegram import (
@@ -28,6 +30,27 @@ BANNED_WORDS = ["мошенн", "наркот", "оруж", "поддел", "э�
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 MIN_LEN = 10
 # ===================================
+# ===== ИГРЫ: данные =====
+GAME_BTN_TL  = "✅❌ Правда или ложь"
+GAME_BTN_RPS = "✊✋✌️ Камень, ножницы, бумага"
+GAME_BTN_FACT= "😄 Случайный факт или шутка"
+
+TRUTH_OR_LIE = [
+    ("Солнце — это звезда.", True),
+    ("У улитки четыре сердца.", False),
+    ("Амазонка — самая длинная река мира.", True),
+    ("Человек использует 100% мозга постоянно.", False),
+    ("Пингвины живут на Северном полюсе.", False),
+    ("Молния может ударить в одно место дважды.", True),
+]
+
+FACTS_OR_JOKES = [
+    "Факт: Самая короткая война в истории длилась около 38 минут.",
+    "Шутка: — Доктор, я вижу будущее! — И как оно? — Расплывчатое… у вас очки запотели.",
+    "Факт: У осьминога три сердца.",
+    "Шутка: Моя диета проста: если я не вижу еды — я сплю.",
+    "Факт: Мед — единственный продукт, который не портится.",
+]
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("baraholka")
@@ -82,6 +105,66 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
         disable_web_page_preview=True
     )
+
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+async def show_games_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(GAME_BTN_TL,  callback_data="game_tl")],
+        [InlineKeyboardButton(GAME_BTN_RPS, callback_data="game_rps")],
+        [InlineKeyboardButton(GAME_BTN_FACT,callback_data="game_fact")],
+    ])
+    await update.message.reply_text("Выберите игру:", reply_markup=kb)
+
+async def send_truth_or_lie_round(query, context):
+    stmt, is_true = random.choice(TRUTH_OR_LIE)
+    # Сохраняем правильный ответ в data у пользователя
+    context.user_data["tl_answer"] = is_true
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Правда", callback_data="game_tl_answer_true"),
+         InlineKeyboardButton("❌ Ложь",   callback_data="game_tl_answer_false")],
+        [InlineKeyboardButton("🔁 Ещё",    callback_data="game_tl")],
+    ])
+    await query.edit_message_text(f"Правда или ложь?\n\n{stmt}", reply_markup=kb)
+
+async def play_rps_round(query, context, user_choice=None):
+    # Если пользователь сделал ход — разыгрываем раунд
+    if user_choice:
+        bot_choice = random.choice(["rock", "paper", "scissors"])
+        names = {"rock": "✊ Камень", "paper": "✋ Бумага", "scissors": "✌️ Ножницы"}
+
+        # Вычислим результат
+        result = "Ничья!"
+        if (user_choice, bot_choice) in [
+            ("rock","scissors"), ("scissors","paper"), ("paper","rock")
+        ]:
+            result = "Ты выиграл! 🎉"
+        elif user_choice != bot_choice:
+            result = "Я выиграл! 😎"
+
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
+             InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
+             InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
+            [InlineKeyboardButton("🔁 Ещё", callback_data="game_rps")]
+        ])
+        await query.edit_message_text(
+            f"Ты: {names[user_choice]}\nЯ: {names[bot_choice]}\n\n{result}\n\nСыграем ещё?",
+            reply_markup=kb
+        )
+        return
+
+    # Первый показ выбора
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
+         InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
+         InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
+    ])
+    await query.edit_message_text("Выбери: камень, ножницы или бумага:", reply_markup=kb)
+
+async def send_random_fact(query):
+    await query.edit_message_text(random.choice(FACTS_OR_JOKES))
+
 
 # ===== КОНСТАНТЫ ДЛЯ КНОПОК МЕНЮ =====
 BTN_SELL        = "💰 Продать"
@@ -168,7 +251,7 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 8) Правила канала → ссылка
     if msg == BTN_RULES:
         await update.message.reply_text(
-            f"Правила канала: {RULES_URL}",
+            f"Правила канала: {https://t.me/zk_baraholka/14}",
             disable_web_page_preview=True
         )
         return
@@ -182,9 +265,9 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 10) Поиграть → заглушка/мини-активность
-    if msg == BTN_PLAY:
-        await update.message.reply_text("Игра в разработке. Загляните позже 😉")
-        return
+   if msg == BTN_PLAY:
+    return await show_games_menu(update, context)
+
 
     # 11) Задать вопрос → контакт/форма
     if msg == BTN_ASK:
@@ -461,6 +544,7 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("getbutton", cmd_getbutton))
+    app.add_handler(CallbackQueryHandler(games_router, pattern="^game_"))
     app.add_handler(conv)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
     app.run_polling()
@@ -468,6 +552,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

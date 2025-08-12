@@ -546,12 +546,17 @@ def main():
     app.add_handler(CommandHandler("getbutton", cmd_getbutton))
     app.add_handler(CallbackQueryHandler(games_router, pattern="^game_"))
     app.add_handler(conv)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
+        app.add_handler(CommandHandler("games", show_games_menu))
+    app.add_handler(CallbackQueryHandler(play_truth_or_lie, pattern="^game_truth_or_lie$"))
+    app.add_handler(CallbackQueryHandler(play_rps, pattern="^game_rps$"))
+    app.add_handler(CallbackQueryHandler(play_fact, pattern="^game_fact$"))
+
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

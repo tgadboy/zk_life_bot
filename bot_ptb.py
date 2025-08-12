@@ -4,7 +4,7 @@ import logging
 from typing import Dict, List, Tuple
 
 from telegram import (
-    Update, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
+    Update, InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, ReplyKeyboardMarkup
 )
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, ConversationHandler,
@@ -83,6 +83,131 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True
     )
 
+# ===== КОНСТАНТЫ ДЛЯ КНОПОК МЕНЮ =====
+BTN_SELL        = "💰 Продать"
+BTN_FIND        = "🔍 Найти"
+BTN_SERVICE     = "🎯 Разместить услугу"
+BTN_ADS         = "📢 Разместить рекламу"
+BTN_FIND_SVC    = "🛠️ Найти сервис"
+BTN_FIND_MASTER = "💅 Найти мастера"
+BTN_DEALS       = "🔥 Акции и скидки"
+BTN_RULES       = "📄 Правила канала"
+BTN_BONUS       = "🎁 Получить 150 ₽"
+BTN_PLAY        = "🎮 Поиграть"
+BTN_ASK         = "💬 Задать вопрос"
+BTN_CONTACTS    = "☎️ Важные контакты"
+
+# (опционально) имя админа, если есть username:
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Zk_Life_Admin")  # например, "zk_admin"
+RULES_URL = "https://t.me/zk_baraholka/7"         # можно заменить при необходимости
+
+async def start_new_with_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
+    """Запускает создание объявления сразу с выбранной категорией."""
+    uid = update.effective_user.id
+    pending[uid] = {"category": category, "text": "", "photos": [], "contact": "", "paid": False}
+    await update.message.reply_text(
+        f"Категория: {category}\n\nНапишите текст объявления (до 1000 символов)."
+    )
+    return TEXT  # позволяем ConversationHandler забрать управление
+
+async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Роутер для нажатий на кнопки меню (reply-клавиатура)."""
+    msg = (update.message.text or "").strip()
+
+    # 1) Продать → запустить воронку /new с категорией "Продажа"
+    if msg == BTN_SELL:
+        return await start_new_with_category(update, context, "Продажа")
+
+    # 2) Найти → подсказка, как искать в канале
+    if msg == BTN_FIND:
+        await update.message.reply_text(
+            "Чтобы найти объявление, откройте канал и используйте поиск по ключевым словам.\n"
+            "Например: «велосипед», «сдаю», «услуги ремонта».",
+            disable_web_page_preview=True
+        )
+        return
+
+    # 3) Разместить услугу → воронка с категорией "Услуги"
+    if msg == BTN_SERVICE:
+        return await start_new_with_category(update, context, "Услуги")
+
+    # 4) Разместить рекламу → контакт администратора
+    if msg == BTN_ADS:
+        contact_text = "Свяжитесь с администратором для рекламы."
+        if ADMIN_USERNAME:
+            contact_text += f" Пишите: @{ADMIN_USERNAME}"
+        else:
+            contact_text += f" ID администратора: {ADMIN_ID}"
+        await update.message.reply_text(contact_text)
+        return
+
+    # 5) Найти сервис → подсказка/ссылка (при желании тут можно сделать каталог)
+    if msg == BTN_FIND_SVC:
+        await update.message.reply_text(
+            "Напишите, какой сервис вы ищете (например: клининг, доставка, ветеринар) — подскажу или дам контакты."
+        )
+        return
+
+    # 6) Найти мастера → подсказка/ссылка
+    if msg == BTN_FIND_MASTER:
+        await update.message.reply_text(
+            "Какого мастера ищете? (например: сантехник, электрик, парикмахер)\n"
+            "Напишите одним сообщением — я предложу варианты."
+        )
+        return
+
+    # 7) Акции и скидки → можно использовать хэштег в канале
+    if msg == BTN_DEALS:
+        await update.message.reply_text(
+            "Смотрите свежие акции и скидки в канале по хэштегу #акции.\n"
+            "Перейти: https://t.me/zk_baraholka",
+            disable_web_page_preview=True
+        )
+        return
+
+    # 8) Правила канала → ссылка
+    if msg == BTN_RULES:
+        await update.message.reply_text(
+            f"Правила канала: {RULES_URL}",
+            disable_web_page_preview=True
+        )
+        return
+
+    # 9) Получить 150 ₽ → инструкция (заполни свою механику)
+    if msg == BTN_BONUS:
+        await update.message.reply_text(
+            "🎁 Бонус 150 ₽: пригласите друга в канал и пришлите скрин — начислим бонус.\n"
+            "Подробности у администратора."
+        )
+        return
+
+    # 10) Поиграть → заглушка/мини-активность
+    if msg == BTN_PLAY:
+        await update.message.reply_text("Игра в разработке. Загляните позже 😉")
+        return
+
+    # 11) Задать вопрос → контакт/форма
+    if msg == BTN_ASK:
+        if ADMIN_USERNAME:
+            await update.message.reply_text(f"Задайте вопрос администратору: @{ADMIN_USERNAME}")
+        else:
+            await update.message.reply_text("Напишите ваш вопрос одним сообщением — я передам администратору.")
+        return
+
+    # 12) Важные контакты → краткий список (заполни своими)
+    if msg == BTN_CONTACTS:
+        await update.message.reply_text(
+            "Важные контакты ЖК:\n"
+            "• Охрана: +7 (000) 000-00-00\n"
+            "• УК: +7 (000) 000-00-01\n"
+            "• Аварийная служба: +7 (000) 000-00-02\n"
+            "• Консьерж: +7 (000) 000-00-03"
+        )
+        return
+
+    # Если пришёл текст, который не совпадает с кнопками — ничего не делаем здесь.
+    # Пусть обработают другие хендлеры (например, твой ConversationHandler).
+    return
 
 
 
@@ -337,12 +462,13 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("getbutton", cmd_getbutton))
     app.add_handler(conv)
-
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

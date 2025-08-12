@@ -30,6 +30,36 @@ BANNED_WORDS = ["мошенн", "наркот", "оруж", "поддел", "э�
 URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 MIN_LEN = 10
 # ===================================
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("baraholka")
+
+# Состояния диалога
+(CATEGORY, TEXT, PHOTOS, CONTACT, CONFIRM, PAYMENT) = range(6)
+
+# Память для черновиков (MVP без БД)
+pending: Dict[int, Dict] = {}  # user_id -> {category, text, photos, contact, paid}
+
+
+
+# ===== КОНСТАНТЫ ДЛЯ КНОПОК МЕНЮ =====
+BTN_SELL        = "💰 Продать"
+BTN_FIND        = "🔍 Найти"
+BTN_SERVICE     = "🎯 Разместить услугу"
+BTN_ADS         = "📢 Разместить рекламу"
+BTN_FIND_SVC    = "🛠️ Найти сервис"
+BTN_FIND_MASTER = "💅 Найти мастера"
+BTN_DEALS       = "🔥 Акции и скидки"
+BTN_RULES       = "📄 Правила канала"
+BTN_BONUS       = "🎁 Получить 150 ₽"
+BTN_PLAY        = "🎮 Поиграть"
+BTN_ASK         = "💬 Задать вопрос"
+BTN_CONTACTS    = "☎️ Важные контакты"
+
+# (опционально) имя админа, если есть username:
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Zk_Life_Admin")  # например, "zk_admin"
+RULES_URL = "https://t.me/zk_baraholka/7"         # можно заменить при необходимости
+
 # ===== ИГРЫ: данные =====
 GAME_BTN_TL  = "✅❌ Правда или ложь"
 GAME_BTN_RPS = "✊✋✌️ Камень, ножницы, бумага"
@@ -50,28 +80,6 @@ FACTS_OR_JOKES = [
     "Факт: У осьминога три сердца.",
     "Шутка: Моя диета проста: если я не вижу еды — я сплю.",
     "Факт: Мед — единственный продукт, который не портится.",
-]
-
-logging.basicConfig(level=logging.INFO)
-log = logging.getLogger("baraholka")
-
-# Состояния диалога
-(CATEGORY, TEXT, PHOTOS, CONTACT, CONFIRM, PAYMENT) = range(6)
-
-# Память для черновиков (MVP без БД)
-pending: Dict[int, Dict] = {}  # user_id -> {category, text, photos, contact, paid}
-
-
-def auto_moderate(text: str) -> Tuple[bool, str]:
-    t = (text or "").lower()
-    for w in BANNED_WORDS:
-        if w in t:
-            return False, f"Обнаружено запрещённое слово: «{w}»."
-    if URL_RE.search(text or ""):
-        return False, "Ссылки в тексте запрещены."
-    if not text or len(text.strip()) < MIN_LEN:
-        return False, f"Слишком короткое описание (минимум {MIN_LEN} символов)."
-    return True, ""
 
 
 from telegram import ReplyKeyboardMarkup
@@ -106,84 +114,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         disable_web_page_preview=True
     )
 
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-
-async def show_games_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton(GAME_BTN_TL,  callback_data="game_tl")],
-        [InlineKeyboardButton(GAME_BTN_RPS, callback_data="game_rps")],
-        [InlineKeyboardButton(GAME_BTN_FACT,callback_data="game_fact")],
-    ])
-    await update.message.reply_text("Выберите игру:", reply_markup=kb)
-
-async def send_truth_or_lie_round(query, context):
-    stmt, is_true = random.choice(TRUTH_OR_LIE)
-    # Сохраняем правильный ответ в data у пользователя
-    context.user_data["tl_answer"] = is_true
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Правда", callback_data="game_tl_answer_true"),
-         InlineKeyboardButton("❌ Ложь",   callback_data="game_tl_answer_false")],
-        [InlineKeyboardButton("🔁 Ещё",    callback_data="game_tl")],
-    ])
-    await query.edit_message_text(f"Правда или ложь?\n\n{stmt}", reply_markup=kb)
-
-async def play_rps_round(query, context, user_choice=None):
-    # Если пользователь сделал ход — разыгрываем раунд
-    if user_choice:
-        bot_choice = random.choice(["rock", "paper", "scissors"])
-        names = {"rock": "✊ Камень", "paper": "✋ Бумага", "scissors": "✌️ Ножницы"}
-
-        # Вычислим результат
-        result = "Ничья!"
-        if (user_choice, bot_choice) in [
-            ("rock","scissors"), ("scissors","paper"), ("paper","rock")
-        ]:
-            result = "Ты выиграл! 🎉"
-        elif user_choice != bot_choice:
-            result = "Я выиграл! 😎"
-
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
-             InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
-             InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
-            [InlineKeyboardButton("🔁 Ещё", callback_data="game_rps")]
-        ])
-        await query.edit_message_text(
-            f"Ты: {names[user_choice]}\nЯ: {names[bot_choice]}\n\n{result}\n\nСыграем ещё?",
-            reply_markup=kb
-        )
-        return
-
-    # Первый показ выбора
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
-         InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
-         InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
-    ])
-    await query.edit_message_text("Выбери: камень, ножницы или бумага:", reply_markup=kb)
-
-async def send_random_fact(query):
-    await query.edit_message_text(random.choice(FACTS_OR_JOKES))
-
-
-# ===== КОНСТАНТЫ ДЛЯ КНОПОК МЕНЮ =====
-BTN_SELL        = "💰 Продать"
-BTN_FIND        = "🔍 Найти"
-BTN_SERVICE     = "🎯 Разместить услугу"
-BTN_ADS         = "📢 Разместить рекламу"
-BTN_FIND_SVC    = "🛠️ Найти сервис"
-BTN_FIND_MASTER = "💅 Найти мастера"
-BTN_DEALS       = "🔥 Акции и скидки"
-BTN_RULES       = "📄 Правила канала"
-BTN_BONUS       = "🎁 Получить 150 ₽"
-BTN_PLAY        = "🎮 Поиграть"
-BTN_ASK         = "💬 Задать вопрос"
-BTN_CONTACTS    = "☎️ Важные контакты"
-
-# (опционально) имя админа, если есть username:
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Zk_Life_Admin")  # например, "zk_admin"
-RULES_URL = "https://t.me/zk_baraholka/7"         # можно заменить при необходимости
-
+# ==== ОБРАБОТКА КНОПОК МЕНЮ (reply) ====
 async def start_new_with_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
     """Запускает создание объявления сразу с выбранной категорией."""
     uid = update.effective_user.id
@@ -292,6 +223,80 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Пусть обработают другие хендлеры (например, твой ConversationHandler).
     return
 
+
+
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+async def show_games_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(GAME_BTN_TL,  callback_data="game_tl")],
+        [InlineKeyboardButton(GAME_BTN_RPS, callback_data="game_rps")],
+        [InlineKeyboardButton(GAME_BTN_FACT,callback_data="game_fact")],
+    ])
+    await update.message.reply_text("Выберите игру:", reply_markup=kb)
+
+async def send_truth_or_lie_round(query, context):
+    stmt, is_true = random.choice(TRUTH_OR_LIE)
+    # Сохраняем правильный ответ в data у пользователя
+    context.user_data["tl_answer"] = is_true
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Правда", callback_data="game_tl_answer_true"),
+         InlineKeyboardButton("❌ Ложь",   callback_data="game_tl_answer_false")],
+        [InlineKeyboardButton("🔁 Ещё",    callback_data="game_tl")],
+    ])
+    await query.edit_message_text(f"Правда или ложь?\n\n{stmt}", reply_markup=kb)
+
+async def play_rps_round(query, context, user_choice=None):
+    # Если пользователь сделал ход — разыгрываем раунд
+    if user_choice:
+        bot_choice = random.choice(["rock", "paper", "scissors"])
+        names = {"rock": "✊ Камень", "paper": "✋ Бумага", "scissors": "✌️ Ножницы"}
+
+        # Вычислим результат
+        result = "Ничья!"
+        if (user_choice, bot_choice) in [
+            ("rock","scissors"), ("scissors","paper"), ("paper","rock")
+        ]:
+            result = "Ты выиграл! 🎉"
+        elif user_choice != bot_choice:
+            result = "Я выиграл! 😎"
+
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
+             InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
+             InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
+            [InlineKeyboardButton("🔁 Ещё", callback_data="game_rps")]
+        ])
+        await query.edit_message_text(
+            f"Ты: {names[user_choice]}\nЯ: {names[bot_choice]}\n\n{result}\n\nСыграем ещё?",
+            reply_markup=kb
+        )
+        return
+
+    # Первый показ выбора
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✊", callback_data="game_rps_pick_rock"),
+         InlineKeyboardButton("✋", callback_data="game_rps_pick_paper"),
+         InlineKeyboardButton("✌️", callback_data="game_rps_pick_scissors")],
+    ])
+    await query.edit_message_text("Выбери: камень, ножницы или бумага:", reply_markup=kb)
+
+async def send_random_fact(query):
+    await query.edit_message_text(random.choice(FACTS_OR_JOKES))
+
+
+# ==== ОСНОВНОЙ ФУНКЦИОНАЛ ОБЪЯВЛЕНИЙ ====
+def auto_moderate(text: str) -> Tuple[bool, str]:
+    t = (text or "").lower()
+    for w in BANNED_WORDS:
+        if w in t:
+            return False, f"Обнаружено запрещённое слово: «{w}»."
+    if URL_RE.search(text or ""):
+        return False, "Ссылки в тексте запрещены."
+    if not text or len(text.strip()) < MIN_LEN:
+        return False, f"Слишком короткое описание (минимум {MIN_LEN} символов)."
+    return True, ""
 
 
 
@@ -542,20 +547,23 @@ def main():
         allow_reentry=True,
     )
 
+    
+    
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("getbutton", cmd_getbutton))
+    
     app.add_handler(CallbackQueryHandler(games_router, pattern="^game_"))
+    
     app.add_handler(conv)
-        app.add_handler(CommandHandler("games", show_games_menu))
-    app.add_handler(CallbackQueryHandler(play_truth_or_lie, pattern="^game_truth_or_lie$"))
-    app.add_handler(CallbackQueryHandler(play_rps, pattern="^game_rps$"))
-    app.add_handler(CallbackQueryHandler(play_fact, pattern="^game_fact$"))
-
+    
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
+    
     app.run_polling()
 
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -280,7 +280,7 @@ async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_getbutton(update: Update, context: ContextTypes.DEFAULT_TYPE):
     me = await context.bot.get_me()
     kb = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("Начни здесь", url=f"https://t.me/{@zk_life_bot}?start=from_channel")]]
+        [[InlineKeyboardButton("Начни здесь", url="https://t.me/zk_life_bot?start=from_channel")]]
     )
     await update.message.reply_text(
         "📢 Разместить объявление в «ЖК Барахолка»\n\nНажмите кнопку ниже, чтобы отправить объявление боту.",
@@ -324,4 +324,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

@@ -227,14 +227,14 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg == BTN_RULES:
-        kb = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("📄 Открыть правила", url="https://t.me/zk_baraholka/7")]]
-        )
         await update.message.reply_text(
-            "Нажмите кнопку ниже, чтобы открыть правила канала:",
-            reply_markup=kb
+            "Открываю правила...",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📄 Правила канала", url="https://t.me/zk_baraholka/7")]
+            ])
         )
         return
+
 
 
     return
@@ -573,6 +573,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -41,7 +41,7 @@ MIN_LEN = 10
 
 # Ссылки
 CHANNEL_PIN_URL = "https://t.me/zk_baraholka/7"   # закреп канала (вернуться из бота)
-RULES_URL = "https://t.me/zk_baraholka/14"        # правила канала
+RULES_URL = "https://t.me/zk_baraholka/7"        # правила канала
 
 # Имя админа (без @). Если пусто — будем показывать ADMIN_ID.
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Zk_Life_Admin")
@@ -227,10 +227,14 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg == BTN_RULES:
-        await update.message.reply_text(
-            f"Правила канала: {https://t.me/zk_baraholka/7}", disable_web_page_preview=True
-        )
-        return
+    kb = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("📄 Открыть правила", url=RULES_URL)]]
+    )
+    await update.message.reply_text(
+        "Нажмите кнопку ниже, чтобы открыть правила канала:",
+        reply_markup=kb
+    )
+    return
 
     return
 
@@ -568,4 +572,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

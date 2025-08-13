@@ -44,7 +44,7 @@ CHANNEL_PIN_URL = "https://t.me/zk_baraholka/7"   # закреп канала (�
 RULES_URL = "https://t.me/zk_baraholka/7"        # правила канала
 
 # Имя админа (без @). Если пусто — будем показывать ADMIN_ID.
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "Zk_Life_Admin")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "zk_life_admin")
 # ===================================
 
 logging.basicConfig(level=logging.INFO)
@@ -573,6 +573,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -666,58 +666,107 @@ async def confirm_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
 async def on_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    uid = q.from_user.id
-    if uid not in pending:
-        await q.edit_message_text("Сессия истекла. Начните заново: /new")
-        return ConversationHandler.END
-
-    if q.data == "post_cancel":
-        pending.pop(uid, None)
-        await q.edit_message_text("Отменено.")
-        return ConversationHandler.END
-
-    ok, reason = auto_moderate(pending[uid]["text"])
-    if not ok:
-        await q.edit_message_text(
-            f"Объявление не прошло авто-проверку: {reason}\nОтредактируйте и отправьте заново (/new)."
-        )
-        return ConversationHandler.END
-
-    if q.data == "post_free":
-        await q.edit_message_text("Готово! Объявление отправлено в канал.")
-        await publish_to_channel(context, uid, priority=False)
-        pending.pop(uid, None)
-        return ConversationHandler.END
-
-    if q.data == "post_paid":
-        if not PROVIDER_TOKEN:
-            await q.edit_message_text("Оплата недоступна. Свяжитесь с админом.")
+    try:
+        q = update.callback_query
+        await q.answer()
+        user_id = q.from_user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await q.edit_message_text("Сессия истекла. Начните заново: /new")
             return ConversationHandler.END
-        price = [LabeledPrice("Приоритетная публикация", PRIORITY_PRICE_COP)]
-        await context.bot.send_invoice(
-            chat_id=uid,
-            title="Приоритетная публикация",
-            description="Ваше объявление выйдет быстрее (вне очереди).",
-            payload=f"priority_{uid}",
-            provider_token=PROVIDER_TOKEN,
-            currency="RUB",
-            prices=price,
-        )
-        await q.edit_message_text("Счёт отправлен. После оплаты объявление будет опубликовано.")
-        return PAYMENT
+
+        # Получаем данные объявления для модерации
+        ad_data = get_ad(ad_id, user_id)
+        if not ad_data:
+            await q.edit_message_text("Объявление не найдено. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Проверяем текст автомодерацией
+        ok, reason = auto_moderate(ad_data['text'])
+        if not ok:
+            await q.edit_message_text(
+                f"Объявление не прошло проверку: {reason}\nОтредактируйте и отправьте заново (/new)."
+            )
+            return ConversationHandler.END
+
+        if q.data == "post_cancel":
+            # Удаляем объявление из БД при отмене
+            delete_ad(ad_id, user_id)
+            await q.edit_message_text("❌ Объявление отменено и удалено.")
+            return ConversationHandler.END
+
+        if q.data == "post_free":
+            # Публикуем бесплатно
+            await q.edit_message_text("📤 Отправляем объявление в канал...")
+            await publish_to_channel(context, user_id, priority=False)
+            await q.edit_message_text("✅ Объявление опубликовано в канале!")
+            return ConversationHandler.END
+
+        if q.data == "post_paid":
+            if not PROVIDER_TOKEN:
+                await q.edit_message_text("⚠️ Оплата временно недоступна. Используйте бесплатную публикацию.")
+                return CONFIRM
+            
+            # Создаем счет на оплату
+            price = [LabeledPrice("Приоритетная публикация", PRIORITY_PRICE_COP)]
+            await context.bot.send_invoice(
+                chat_id=user_id,
+                title="Приоритетная публикация",
+                description="Ваше объявление будет размещено вверху ленты",
+                payload=f"priority_{ad_id}",
+                provider_token=PROVIDER_TOKEN,
+                currency="RUB",
+                prices=price,
+            )
+            await q.edit_message_text("💳 Счет для оплаты отправлен. После оплаты ваши объявления будут опубликованы.")
+            return PAYMENT
+
+    except Exception as e:
+        log.error(f"Error in on_confirm: {str(e)}", exc_info=True)
+        try:
+            await q.edit_message_text("😕 Произошла ошибка. Попробуй начать заново: /new")
+        except:
+            pass
+        return ConversationHandler.END
 
 async def precheckout(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.pre_checkout_query.answer(ok=True)
 
 async def on_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid in pending:
-        pending[uid]["paid"] = True
-        await update.message.reply_text("Оплата получена! Публикуем объявление.")
-        await publish_to_channel(context, uid, priority=True)
-        pending.pop(uid, None)
+    try:
+        user_id = update.effective_user.id
+        ad_id = context.user_data.get('current_ad_id')
+        
+        if ad_id:
+            # Помечаем объявление как оплаченное в БД
+            set_ad_paid(ad_id, user_id)
+            # Публикуем с приоритетом
+            await update.message.reply_text("💳 Оплата получена! Публикуем объявление...")
+            await publish_to_channel(context, user_id, priority=True)
+        else:
+            # Если ad_id нет в контексте, пытаемся найти последнее объявление пользователя
+            conn = sqlite3.connect('baraholka.db')
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT id FROM ads WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                ad_id = result['id']
+                set_ad_paid(ad_id, user_id)
+                await update.message.reply_text("💳 Оплата получена! Публикуем ваше последнее объявление...")
+                await publish_to_channel(context, user_id, priority=True)
+            else:
+                await update.message.reply_text("❌ Не найдено объявление для публикации. Создайте новое: /new")
+
+    except Exception as e:
+        log.error(f"Error in on_paid: {str(e)}", exc_info=True)
+        await update.message.reply_text("❌ Ошибка при обработке оплаты. Свяжитесь с администратором.")
+        
 
 async def publish_to_channel(context: ContextTypes.DEFAULT_TYPE, uid: int, priority: bool):
     try:
@@ -846,6 +895,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

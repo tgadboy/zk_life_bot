@@ -13,7 +13,9 @@ from telegram import (
     InlineKeyboardButton,
     LabeledPrice,
     ReplyKeyboardMarkup,
+    InputMediaPhoto,
 )
+
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -38,7 +40,7 @@ ADMIN_ID = 6233188035              # твой Telegram user id (число)
 PROVIDER_TOKEN = ""                # токен провайдера (ЮKassa/CloudPayments)
 PRIORITY_PRICE_COP = 30000         # 300 ₽ в копейках
 
-MAX_PHOTOS = 5
+MAX_PHOTOS = 6  # Новый лимит: до 6 фото
 
 # Авто-модерация
 BANNED_WORDS = ["мошенн", "наркот", "оруж", "поддел", "эрот", "инвест", "быстрый заработок"]
@@ -442,11 +444,16 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"Text for ad {ad_id} updated successfully.")
         
         # Сообщение и логика остаются прежними
-        await update.message.reply_text(
-            f"Текст принят.\nТеперь отправьте до {MAX_PHOTOS} фото по одному. "
-            "Когда хватит — /done. Если без фото — /skip."
+            await update.message.reply_text(
+                f"✅ <b>Текст принят.</b>\n\n"
+                f"Теперь отправьте до {MAX_PHOTOS} фото для объявления. Отправляйте сразу несколько.\n\n"
+                f"<i>💡 Советы для лучшего объявления:</i>\n"
+                f"• <b>Первое фото</b> сделайте самым лучшим и привлекательным (главный вид товара)\n"
+                f"• <b>На остальных фото</b> показывайте детали, недостатки, этикетки, комплектацию\n\n"
+                "Когда закончите — нажмите /done\n"
+                "Если без фото — нажмите /skip",
+                parse_mode="HTML"
         )
-        return PHOTOS
 
     except Exception as e:
         log.error(f"Error in on_text: {str(e)}", exc_info=True)
@@ -577,19 +584,67 @@ async def on_paid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending.pop(uid, None)
 
 async def publish_to_channel(context: ContextTypes.DEFAULT_TYPE, uid: int, priority: bool):
-    data = pending.get(uid) or {}
-    caption = f"[{data.get('category','')}] \n\n{data.get('text','')}\n\nКонтакт: {data.get('contact','')}"
-    if priority:
-        caption = "⚡ Приоритет\n\n" + caption
-
-    await context.bot.send_message(chat_id=CHANNEL_ID, text=caption)
-    for fid in data.get("photos") or []:
-        await context.bot.send_photo(chat_id=CHANNEL_ID, photo=fid)
-
     try:
-        await context.bot.send_message(chat_id=uid, text="Ваше объявление опубликовано в канале.")
-    except Exception:
-        pass
+        # Достаем данные из БД. Для этого нам нужна новая функция в database.py
+        conn = sqlite3.connect('baraholka.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT category, text, contact, photos FROM ads WHERE user_id = ? AND id = (SELECT MAX(id) FROM ads WHERE user_id = ?)',
+            (uid, uid)
+        )
+        ad_data = cursor.fetchone()
+        conn.close()
+
+        if not ad_data:
+            log.error(f"No ad data found for user {uid} to publish")
+            return
+
+        category, text, contact, photos_str = ad_data
+        photo_ids = photos_str.split(',') if photos_str else []
+
+        # Формируем подпись (caption) для поста
+        caption = f"{'⚡ ПРИОРИТЕТНОЕ ОБЪЯВЛЕНИЕ\\n\\n' if priority else ''}" \
+                 f"🏷️ <b>Категория:</b> {category}\\n\\n" \
+                 f"📄 <b>Описание:</b> {text}\\n\\n" \
+                 f"👤 <b>Контакт:</b> {contact}"
+
+        # Если есть фото, отправляем как медиагруппу с подписью
+        if photo_ids:
+            # Создаем список медиаобъектов (фото)
+            media_group = []
+            for index, photo_id in enumerate(photo_ids):
+                # Для первого фото добавляем caption (подпись), для остальных - нет
+                media_group.append(InputMediaPhoto(media=photo_id, caption=caption if index == 0 else '', parse_mode="HTML"))
+
+            # Отправляем всю группу фото одним сообщением
+            await context.bot.send_media_group(chat_id=CHANNEL_ID, media=media_group)
+        else:
+            # Если фото нет, просто отправляем текстовое сообщение
+            await context.bot.send_message(chat_id=CHANNEL_ID, text=caption, parse_mode="HTML")
+
+        # Помечаем объявление как опубликованное в БД
+        conn = sqlite3.connect('baraholka.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE ads SET is_published = TRUE WHERE user_id = ? AND id = (SELECT MAX(id) FROM ads WHERE user_id = ?)',
+            (uid, uid)
+        )
+        conn.commit()
+        conn.close()
+
+        # Уведомляем пользователя об успешной публикации
+        try:
+            await context.bot.send_message(chat_id=uid, text="✅ Ваше объявление опубликовано в канале!")
+        except Exception as e:
+            log.error(f"Failed to notify user {uid}: {str(e)}")
+
+    except Exception as e:
+        log.error(f"Error publishing to channel: {str(e)}", exc_info=True)
+        # Пытаемся уведомить пользователя об ошибке
+        try:
+            await context.bot.send_message(chat_id=uid, text="😕 При публикации объявления произошла ошибка. Администратор уже уведомлен.")
+        except:
+            pass
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -655,6 +710,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

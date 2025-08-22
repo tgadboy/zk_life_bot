@@ -1,4 +1,5 @@
 # pip install python-telegram-bot==20.3
+import sqlite3  # Добавьте этот импорт
 import re
 import os
 import random
@@ -344,40 +345,61 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CATEGORY
 
 async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    user = q.from_user
+    try:
+        q = update.callback_query
+        await q.answer()
+        user = q.from_user
 
-    # Достаем ID объявления из контекста
-    ad_id = context.user_data.get('current_ad_id')
-    if not ad_id:
-        await q.edit_message_text("Сессия истекла. Начните заново: /new")
+        # Достаем ID объявления из контекста
+        ad_id = context.user_data.get('current_ad_id')
+        log.info(f"User {user.id} selected category for ad {ad_id}")
+        if not ad_id:
+            await q.edit_message_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        cat_map = {
+            "cat_sale": "Продажа",
+            "cat_service": "Услуги",
+            "cat_buy": "Покупка",
+            "cat_free": "Отдам/Обмен",
+            "cat_other": "Другое",
+        }
+        selected_category = cat_map.get(q.data, "Другое")
+        log.info(f"Selected category: {selected_category}")
+
+        # Обновляем категорию в базе данных
+        conn = sqlite3.connect('baraholka.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE ads SET category = ? WHERE id = ? AND user_id = ?',
+            (selected_category, ad_id, user.id)
+        )
+        conn.commit()
+        
+        # Проверяем, обновилась ли запись
+        if cursor.rowcount == 0:
+            log.error(f"Failed to update category for ad {ad_id}. No rows affected.")
+            await q.edit_message_text("Произошла ошибка при сохранении категории. Попробуйте снова: /new")
+            conn.close()
+            return ConversationHandler.END
+        
+        conn.close()
+        log.info(f"Category updated successfully for ad {ad_id}")
+
+        await q.edit_message_text(
+            f"Категория: {selected_category}\n\nНапишите текст объявления (до 1000 символов)."
+        )
+        return TEXT
+
+    except Exception as e:
+        # Логируем любую ошибку, которая может возникнуть
+        log.error(f"Error in on_category: {str(e)}", exc_info=True)
+        # Пытаемся отправить сообщение об ошибке пользователю
+        try:
+            await q.edit_message_text("😕 Произошла техническая ошибка. Попробуйте начать заново командой /new")
+        except:
+            pass
         return ConversationHandler.END
-
-    cat_map = {
-        "cat_sale": "Продажа",
-        "cat_service": "Услуги",
-        "cat_buy": "Покупка",
-        "cat_free": "Отдам/Обмен",
-        "cat_other": "Другое",
-    }
-    selected_category = cat_map.get(q.data, "Другое")
-
-    # Вместо того чтобы обновлять словарь `pending`, обновляем запись в БД
-    # Для этого нам пока не хватает функции update_ad_category, но мы можем сделать так:
-    conn = sqlite3.connect('baraholka.db')
-    cursor = conn.cursor()
-    cursor.execute(
-        'UPDATE ads SET category = ? WHERE id = ? AND user_id = ?',
-        (selected_category, ad_id, user.id)
-    )
-    conn.commit()
-    conn.close()
-
-    await q.edit_message_text(
-        f"Категория: {selected_category}\n\nНапишите текст объявления (до 1000 символов)."
-    )
-    return TEXT
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -597,6 +619,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -183,3 +183,15 @@ def delete_ad(ad_id: int, user_id: int) -> bool:
 
 # Запустим инициализацию БД при импорте этого файла
 init_db()
+
+def get_user_last_ad(user_id: int):
+    """Получает данные последнего объявления пользователя."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT * FROM ads WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+        (user_id,)
+    )
+    ad = cursor.fetchone()
+    conn.close()
+    return ad

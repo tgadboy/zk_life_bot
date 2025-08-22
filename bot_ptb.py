@@ -36,7 +36,7 @@ from database import (
 
 # ============ НАСТРОЙКИ ============
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_ID = "@zk_baraholka"       # или числовой -100xxxxxxxxx
+CHANNEL_ID = "@live_myakinino_park"       # или числовой -100xxxxxxxxx
 ADMIN_ID = 6233188035              # твой Telegram user id (число)
 
 # Оплата (опционально)
@@ -941,6 +941,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

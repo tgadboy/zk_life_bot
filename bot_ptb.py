@@ -475,16 +475,14 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Сессия истекла. Начните заново: /new")
             return ConversationHandler.END
 
-        # Получаем текущий список фото из БД
-        conn = sqlite3.connect('baraholka.db')
-        cursor = conn.cursor()
-        cursor.execute(
-            'SELECT photos FROM ads WHERE id = ? AND user_id = ?',
-            (ad_id, user_id)
-        )
-        result = cursor.fetchone()
-        current_photos = result['photos'].split(',') if result and result['photos'] else []
-        conn.close()
+        # Получаем данные объявления с помощью функции get_ad (она возвращает словарь!)
+        ad_data = get_ad(ad_id, user_id)
+        if not ad_data:
+            await update.message.reply_text("Объявление не найдено. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Теперь можно обращаться по имени поля, так как это словарь
+        current_photos = ad_data['photos'].split(',') if ad_data['photos'] else []
 
         # Проверяем лимит фото
         if len(current_photos) >= MAX_PHOTOS:
@@ -494,7 +492,6 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Добавляем новое фото
         new_photo_id = update.message.photo[-1].file_id
         current_photos.append(new_photo_id)
-        photos_str = ",".join(current_photos)
 
         # Обновляем запись в БД
         success = set_ad_photos(ad_id, user_id, current_photos)
@@ -511,7 +508,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         log.error(f"Error in on_photo: {str(e)}", exc_info=True)
-        await update.message.reply_text("😕 Ошибка при обработке фото. Попробуйте еще раз или начните заново /new")
+        await update.message.reply_text("😕 Ошибка при обработке фото. Попробуйте еще раз загрузить фото или начните заново /new")
         return PHOTOS
 
 async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -778,6 +775,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -14,8 +14,7 @@ DB_NAME = "baraholka.db"
 def get_db_connection():
     """Создает и возвращает соединение с базой данных."""
     conn = sqlite3.connect(DB_NAME, check_same_thread=False)
-    # Этот параметр нужен, чтобы соединение могло использоваться из разных потоков бота
-    conn.row_factory = sqlite3.Row  # Возвращает результаты в виде словаря, а не кортежа
+    conn.row_factory = sqlite3.Row  # ← ЭТА СТРОКА ВАЖНА! Теперь результаты будут как словари
     return conn
 
 def init_db():

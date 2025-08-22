@@ -396,7 +396,7 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await q.edit_message_text(
             f"✅ Категория: {selected_category}\n\n"
-            "Напишите текст объявления (от 10 до 1000 символов)"
+            "Напиши текст объявления (от 10 до 1000 символов)"
         )
         return TEXT
 
@@ -406,7 +406,7 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.error(f"Error in on_category: {str(e)}", exc_info=True)
         # Пытаемся отправить сообщение об ошибке пользователю
         try:
-            await q.edit_message_text("😕 Произошла техническая ошибка. Попробуйте начать заново командой /new")
+            await q.edit_message_text("😕 Произошла техническая ошибка. Попробуй начать заново командой /new")
         except:
             pass
         return ConversationHandler.END
@@ -422,18 +422,18 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"User {user_id} sent text for ad {ad_id}")
 
         if not ad_id:
-            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            await update.message.reply_text("Сессия истекла. Начни заново: /new")
             return ConversationHandler.END
 
         # Проверяем длину текста
         if len(text) > 1000:
-            await update.message.reply_text("Слишком длинно. Сократите до 1000 символов.")
+            await update.message.reply_text("Слишком длинно. Сократи до 1000 символов.")
             return TEXT
 
         # Проверяем текст автоматической модерацией
         ok, reason = auto_moderate(text)
         if not ok:
-            await update.message.reply_text(f"Текст не прошел проверку: {reason}\nПопробуйте отправить другой текст.")
+            await update.message.reply_text(f"Текст не прошел проверку: {reason}\nПопробуй отправить другой текст.")
             return TEXT
 
         # ОБНОВЛЯЕМ ТЕКСТ ОБЪЯВЛЕНИЯ В БАЗЕ ДАННЫХ
@@ -441,7 +441,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if not success:
             log.error(f"Failed to update text in DB for ad {ad_id}. User {user_id}")
-            await update.message.reply_text("Произошла ошибка при сохранении. Попробуйте снова: /new")
+            await update.message.reply_text("Произошла ошибка при сохранении. Попробуй снова: /new")
             return ConversationHandler.END
 
         log.info(f"Text for ad {ad_id} updated successfully.")
@@ -449,19 +449,19 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Сообщение и логика остаются прежними
         await update.message.reply_text(
             f"✅ <b>Текст принят </b>\n\n"
-            f"Теперь отправьте до {MAX_PHOTOS} фото для объявления. Можно отправить сразу несколько.\n\n"
+            f"Теперь отправь до {MAX_PHOTOS} фото для объявления. Можно отправить сразу несколько.\n\n"
             f"<i>💡 Советы для лучшего объявления:</i>\n\n"
-            f"• <b>Первое фото</b> сделайте самым лучшим и привлекательным (главный вид товара)\n\n"
-            f"• <b>На остальных фото</b> показывайте детали, недостатки, этикетки, комплектацию\n\n"
-            "Когда закончите — нажмите /done\n"
-            "Если фото не нужно — нажмите /skip",
+            f"• <b>Первое фото</b> сделай самым лучшим и привлекательным (главный вид товара)\n\n"
+            f"• <b>На остальных фото</b> показывай детали, недостатки, этикетки, комплектацию\n\n"
+            "Когда закончишь — нажми /done\n"
+            "Если фото не нужно — нажми /skip",
             parse_mode="HTML"
         )
         return PHOTOS
 
     except Exception as e:
         log.error(f"Error in on_text: {str(e)}", exc_info=True)
-        await update.message.reply_text("😕 Произошла непредвиденная ошибка. Попробуйте начать заново командой /new")
+        await update.message.reply_text("😕 Произошла непредвиденная ошибка. Попробуй начать заново командой /new")
         return ConversationHandler.END
         
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -527,7 +527,7 @@ async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Или отправь /me чтобы я автоматически ввёл твой Telegram username."
         )
         return CONTACT
-
+    
     except Exception as e:
         log.error(f"Error in on_photos_done: {str(e)}", exc_info=True)
         await update.message.reply_text("😕 Произошла ошибка. Попробуй начать заново: /new")
@@ -846,6 +846,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

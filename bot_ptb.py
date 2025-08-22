@@ -6,6 +6,8 @@ import os
 import random
 import logging
 from typing import Dict, List, Tuple
+import time  # Добавьте этот импорт
+from telegram.error import Conflict  # Добавьте этот импорт
 
 from telegram import (
     Update,
@@ -890,28 +892,21 @@ def main():
     # Обработчик меню (reply-кнопки)
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_menu))
 
-
-    # Добавьте это перед app.run_polling()
-import asyncio
-from telegram.error import Conflict
-
-async def main():
-    while True:
-        try:
-            await app.run_polling()
-        except Conflict as e:
-            log.error(f"Conflict error: {e}. Restarting in 10 seconds...")
-            await asyncio.sleep(10)
-        except Exception as e:
-            log.error(f"Unexpected error: {e}. Restarting in 30 seconds...")
-            await asyncio.sleep(30)
-
-if __name__ == "__main__":
-   asyncio.run(main())
-
+    # Запуск приложения с обработкой ошибок
+    try:
+        app.run_polling()
+    except Conflict as e:
+        log.error(f"Conflict error: {e}. Restarting in 10 seconds...")
+        time.sleep(10)
+        main()  # Перезапускаем приложение
+    except Exception as e:
+        log.error(f"Unexpected error: {e}. Restarting in 30 seconds...")
+        time.sleep(30)
+        main()  # Перезапускаем приложение
 
 if __name__ == "__main__":
     main()
+
 
 
 

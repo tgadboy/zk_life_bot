@@ -395,8 +395,7 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await q.edit_message_text(
             f"✅<b>"Категория: {selected_category}\n\n" 
-            f"Напишите текст объявления (от 10 до 1000 символов)."
-            
+            f"Напишите текст объявления (от 10 до 1000 символов)"  
         )
         return TEXT
 
@@ -713,6 +712,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

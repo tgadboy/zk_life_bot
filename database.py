@@ -194,3 +194,17 @@ def get_user_last_ad(user_id: int):
     ad = cursor.fetchone()
     conn.close()
     return ad
+
+
+def set_ad_paid(ad_id: int, user_id: int) -> bool:
+    """Отмечает объявление как оплаченное."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE ads SET is_paid = TRUE WHERE id = ? AND user_id = ?',
+        (ad_id, user_id)
+    )
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success

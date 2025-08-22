@@ -796,12 +796,12 @@ async def publish_to_channel(context: ContextTypes.DEFAULT_TYPE, user_id: int, p
 
         # Формируем подпись
         caption = (
-            f"{'⚡ ПРИОРИТЕТНОЕ ОБЪЯВЛЕНИЕ\\n\\n' if priority else ''}"
-            f"🏷️ **Категория:** {category}\\n\\n"
-            f"📄 **Описание:** {text}\\n\\n"
+            f"{'⚡ ПРИОРИТЕТНОЕ ОБЪЯВЛЕНИЕ\n\n' if priority else ''}"
+            f"🏷️ **Категория:** {category}\n\n"
+            f"📄 **Описание:** {text}\n\n"
             f"👤 **Контакт:** {contact}"
         )
-
+        
         # Публикуем в канал
         try:
             if photo_ids:
@@ -941,6 +941,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

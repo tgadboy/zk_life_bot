@@ -8,7 +8,7 @@ import logging
 from typing import Dict, List, Tuple
 import time  # Добавьте этот импорт
 from telegram.error import Conflict  # Добавьте этот импорт
-
+from telegram import ReplyKeyboardRemove  # Добавьте в импорты
 from telegram import (
     Update,
     InlineKeyboardMarkup,
@@ -51,8 +51,8 @@ URL_RE = re.compile(r"https?://\S+|www\.\S+", re.IGNORECASE)
 MIN_LEN = 10
 
 # Ссылки
-CHANNEL_PIN_URL = "https://t.me/zk_baraholka/7"   # закреп канала (вернуться из бота)
-RULES_URL = "https://t.me/zk_baraholka/7"        # правила канала
+CHANNEL_PIN_URL = "https://t.me/live_myakinino_park/7"   # закреп канала (вернуться из бота)
+RULES_URL = "https://t.me/live_myakinino_park/7"        # правила канала
 
 # Имя админа (без @). Если пусто — будем показывать ADMIN_ID.
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "@live_help_team")
@@ -158,13 +158,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ==== ОБРАБОТКА КНОПОК МЕНЮ (reply) ====
-async def start_new_with_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category: str):
-    uid = update.effective_user.id
-    pending[uid] = {"category": category, "text": "", "photos": [], "contact": "", "paid": False}
-    await update.message.reply_text(
-        f"Категория: {category}\n\nНапишите текст объявления (до 1000 символов)."
-    )
-    return TEXT
+
 
 async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (update.message.text or "").strip()
@@ -174,10 +168,15 @@ async def handle_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg == BTN_SELL:
-        return await start_new_with_category(update, context, "Продажа")
+        return await cmd_new(update, context)
 
     if msg == BTN_SERVICE:
-        return await start_new_with_category(update, context, "Услуги")
+        # Создаем объявление с категорией "Услуги"
+        user = update.effective_user
+        ad_id = create_ad(user.id, "Услуги")
+        context.user_data['current_ad_id'] = ad_id
+        await update.message.reply_text("Категория: Услуги\n\nНапишите текст объявления:")
+        return TEXT
 
     if msg == BTN_FIND:
         await update.message.reply_text(
@@ -874,9 +873,29 @@ async def cmd_check_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
 
 async def cmd_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    pending.pop(uid, None)
-    await update.message.reply_text("Отменено.")
+    user = update.effective_user
+    user_id = user.id
+    
+    # Удаляем объявление из БД
+    ad_id = context.user_data.get('current_ad_id')
+    if ad_id:
+        delete_ad(ad_id, user_id)
+    
+    # Возвращаем главное меню
+    buttons = [
+        [BTN_SELL, BTN_FIND],
+        [BTN_SERVICE, BTN_ADS],
+        [BTN_FIND_SVC, BTN_FIND_MASTER],
+        [BTN_DEALS, BTN_BONUS],
+        [BTN_PLAY, BTN_CONTACTS],
+        [BTN_ASK, BTN_RULES],
+    ]
+    reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "Создание объявления отменено.",
+        reply_markup=reply_markup
+    )
     return ConversationHandler.END
 
 
@@ -947,6 +966,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

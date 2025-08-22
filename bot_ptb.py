@@ -521,7 +521,7 @@ async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Сессия истекла. Начните заново: /new")
             return ConversationHandler.END
 
-        await update.message.reply_text(
+        await update.message.reply_text()
             f"✅ Теперь укажи контакт для связи.\n" 
             (твой ник в телеграме, например @zk_life_bot )\n\n"
             "Или отправь /me чтобы я автоматически ввёл твой Telegram username."
@@ -846,6 +846,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

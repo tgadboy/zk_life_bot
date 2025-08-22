@@ -28,7 +28,8 @@ from telegram.ext import (
 )
 
 from database import (
-    create_ad, get_ad, update_ad_text, set_ad_photos,  # ... и другие функции ...
+    create_ad, get_ad, update_ad_text, set_ad_photos,
+    set_ad_contact, set_ad_paid, set_ad_published, delete_ad
 )
 
 # ============ НАСТРОЙКИ ============
@@ -394,7 +395,7 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"Category updated successfully for ad {ad_id}")
 
         await q.edit_message_text(
-            f"✅ Категория:{selected_category}\n\n"
+            f"✅ Категория: {selected_category}\n\n"
             "Напишите текст объявления (от 10 до 1000 символов)"
         )
         return TEXT
@@ -464,37 +465,101 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
         
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
-        return ConversationHandler.END
-    photos: List[str] = pending[uid]["photos"]
-    if len(photos) >= MAX_PHOTOS:
-        await update.message.reply_text(f"Максимум {MAX_PHOTOS} фото. Отправьте /done.")
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        # Достаем ID объявления из контекста
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Получаем текущий список фото из БД
+        conn = sqlite3.connect('baraholka.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT photos FROM ads WHERE id = ? AND user_id = ?',
+            (ad_id, user_id)
+        )
+        result = cursor.fetchone()
+        current_photos = result['photos'].split(',') if result and result['photos'] else []
+        conn.close()
+
+        # Проверяем лимит фото
+        if len(current_photos) >= MAX_PHOTOS:
+            await update.message.reply_text(f"❌ Максимум {MAX_PHOTOS} фото. Отправьте /done чтобы завершить.")
+            return PHOTOS
+
+        # Добавляем новое фото
+        new_photo_id = update.message.photo[-1].file_id
+        current_photos.append(new_photo_id)
+        photos_str = ",".join(current_photos)
+
+        # Обновляем запись в БД
+        success = set_ad_photos(ad_id, user_id, current_photos)
+        
+        if not success:
+            await update.message.reply_text("❌ Ошибка при сохранении фото. Попробуйте снова.")
+            return PHOTOS
+
+        await update.message.reply_text(
+            f"✅ Фото {len(current_photos)}/{MAX_PHOTOS} добавлено.\n"
+            f"Отправьте ещё фото или /done чтобы завершить."
+        )
         return PHOTOS
-    photos.append(update.message.photo[-1].file_id)
-    await update.message.reply_text(f"Фото {len(photos)}/{MAX_PHOTOS} добавлено. Отправьте ещё или /done.")
-    return PHOTOS
+
+    except Exception as e:
+        log.error(f"Error in on_photo: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Ошибка при обработке фото. Попробуйте еще раз или начните заново /new")
+        return PHOTOS
 
 async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        await update.message.reply_text(
+            "📞 Теперь укажите контакт для связи (телефон или @username).\n"
+            "Или отправьте /me чтобы использовать ваш Telegram username."
+        )
+        return CONTACT
+
+    except Exception as e:
+        log.error(f"Error in on_photos_done: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
         return ConversationHandler.END
-    await update.message.reply_text(
-        "Фото приняты. Напишите контакт (телефон или @username), либо /me чтобы использовать ваш username."
-    )
-    return CONTACT
 
 async def on_photos_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Явно устанавливаем пустой список фото в БД
+        success = set_ad_photos(ad_id, user_id, [])
+        if not success:
+            log.warning(f"Failed to set empty photos for ad {ad_id}")
+
+        await update.message.reply_text(
+            "📞 Фото пропущены. Укажите контакт для связи (телефон или @username).\n"
+            "Или отправьте /me чтобы использовать ваш Telegram username."
+        )
+        return CONTACT
+
+    except Exception as e:
+        log.error(f"Error in on_photos_skip: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
         return ConversationHandler.END
-    await update.message.reply_text(
-        "Фото пропущены. Напишите контакт (телефон или @username), либо /me чтобы использовать ваш username."
-    )
-    return CONTACT
 
 async def on_contact_me(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
@@ -713,6 +778,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

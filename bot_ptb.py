@@ -340,78 +340,84 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==== ОСНОВНОЙ ФУНКЦИОНАЛ ОБЪЯВЛЕНИЙ ====
 async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Создаем новое объявление в БД и сохраняем его ID в данные контекста (context.user_data)
-    ad_id = create_ad(user.id, None)  # Категория пока None
-    context.user_data['current_ad_id'] = ad_id  # Сохраняем ID объявления для этого пользователя
+    # Создаем новое объявление в БД
+    ad_id = create_ad(user.id, None)
+    context.user_data['current_ad_id'] = ad_id
 
-    kb = [
-        [InlineKeyboardButton("Продажа", callback_data="cat_sale")],
-        [InlineKeyboardButton("Услуги", callback_data="cat_service")],
-        [InlineKeyboardButton("Покупка", callback_data="cat_buy")],
-        [InlineKeyboardButton("Отдам/Обмен", callback_data="cat_free")],
-        [InlineKeyboardButton("Другое", callback_data="cat_other")],
+    # Кнопки для выбора категории (отдельные от главного меню)
+    category_buttons = [
+        ['🏷️ Продажа', '🎯 Услуги'],
+        ['🛒 Покупка', '🔄 Отдам/Обмен'], 
+        ['📢 Реклама', '❓ Другое'],
+        ['❌ Отмена']
     ]
-    await update.message.reply_text("Выберите категорию:", reply_markup=InlineKeyboardMarkup(kb))
+    
+    await update.message.reply_text(
+        "Выберите категорию для объявления:",
+        reply_markup=ReplyKeyboardMarkup(category_buttons, resize_keyboard=True, one_time_keyboard=True)
+    )
     return CATEGORY
 
 async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        q = update.callback_query
-        await q.answer()
-        user = q.from_user
-
-        # Достаем ID объявления из контекста
+        user = update.effective_user
+        user_id = user.id
+        text = update.message.text.strip()
+        
         ad_id = context.user_data.get('current_ad_id')
-        log.info(f"User {user.id} selected category for ad {ad_id}")
         if not ad_id:
-            await q.edit_message_text("Сессия истекла. Начните заново: /new")
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
             return ConversationHandler.END
 
-        cat_map = {
-            "cat_sale": "Продажа",
-            "cat_service": "Услуги",
-            "cat_buy": "Покупка",
-            "cat_free": "Отдам/Обмен",
-            "cat_other": "Другое",
+        # Маппинг кнопок категорий
+        category_map = {
+            '🏷️ Продажа': 'Продажа',
+            '🎯 Услуги': 'Услуги',
+            '🛒 Покупка': 'Покупка',
+            '🔄 Отдам/Обмен': 'Отдам/Обмен',
+            '📢 Реклама': 'Реклама', 
+            '❓ Другое': 'Другое'
         }
-        selected_category = cat_map.get(q.data, "Другое")
-        log.info(f"Selected category: {selected_category}")
+        
+        if text == '❌ Отмена':
+            return await cmd_cancel(update, context)
+        
+        selected_category = category_map.get(text)
+        if not selected_category:
+            await update.message.reply_text("Пожалуйста, выберите категорию из кнопок ниже:")
+            return CATEGORY
 
-        # Обновляем категорию в базе данных
+        # Сохраняем категорию в БД
         conn = sqlite3.connect('baraholka.db')
         cursor = conn.cursor()
         cursor.execute(
             'UPDATE ads SET category = ? WHERE id = ? AND user_id = ?',
-            (selected_category, ad_id, user.id)
+            (selected_category, ad_id, user_id)
         )
         conn.commit()
-        
-        # Проверяем, обновилась ли запись
-        if cursor.rowcount == 0:
-            log.error(f"Failed to update category for ad {ad_id}. No rows affected.")
-            await q.edit_message_text("Произошла ошибка при сохранении категории. Попробуйте снова: /new")
-            conn.close()
-            return ConversationHandler.END
-        
         conn.close()
-        log.info(f"Category updated successfully for ad {ad_id}")
 
-        await q.edit_message_text(
-            f"✅ Категория: {selected_category}\n\n"
-            "Напиши текст объявления (от 10 до 1000 символов)"
+        # ВОЗВРАЩАЕМ ВАШЕ ГЛАВНОЕ МЕНЮ из 12 кнопок
+        buttons = [
+            [BTN_SELL, BTN_FIND],
+            [BTN_SERVICE, BTN_ADS],
+            [BTN_FIND_SVC, BTN_FIND_MASTER],
+            [BTN_DEALS, BTN_BONUS],
+            [BTN_PLAY, BTN_CONTACTS],
+            [BTN_ASK, BTN_RULES],
+        ]
+        
+        await update.message.reply_text(
+            f"✅ Категория: {selected_category}\n\nТеперь напишите текст объявления:",
+            reply_markup=ReplyKeyboardMarkup(buttons, resize_keyboard=True)
         )
         return TEXT
 
-
     except Exception as e:
-        # Логируем любую ошибку, которая может возникнуть
         log.error(f"Error in on_category: {str(e)}", exc_info=True)
-        # Пытаемся отправить сообщение об ошибке пользователю
-        try:
-            await q.edit_message_text("😕 Произошла техническая ошибка. Попробуй начать заново командой /new")
-        except:
-            pass
+        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
         return ConversationHandler.END
+        
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -941,6 +947,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -394,7 +394,7 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log.info(f"Category updated successfully for ad {ad_id}")
 
         await q.edit_message_text(
-            f"✅<b>Категория:{selected_category}</b>\n\n"
+            f"✅ Категория:{selected_category}\n\n"
             "Напишите текст объявления (от 10 до 1000 символов)"
         )
         return TEXT
@@ -713,6 +713,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

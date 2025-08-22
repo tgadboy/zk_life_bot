@@ -1,4 +1,5 @@
 # pip install python-telegram-bot==20.3
+
 import sqlite3  # Добавьте этот импорт
 import re
 import os
@@ -22,6 +23,10 @@ from telegram.ext import (
     PreCheckoutQueryHandler,
     ContextTypes,
     filters,
+)
+
+from database import (
+    create_ad, get_ad, update_ad_text, set_ad_photos,  # ... и другие функции ...
 )
 
 # ============ НАСТРОЙКИ ============
@@ -402,21 +407,52 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
-        return ConversationHandler.END
-    text = (update.message.text or "").strip()
-    if len(text) > 1000:
-        await update.message.reply_text("Слишком длинно. Сократите до 1000 символов.")
-        return TEXT
-    pending[uid]["text"] = text
-    await update.message.reply_text(
-        f"Текст принят.\nТеперь отправьте до {MAX_PHOTOS} фото по одному. "
-        "Когда хватит — /done. Если без фото — /skip."
-    )
-    return PHOTOS
+    try:
+        user = update.effective_user
+        user_id = user.id
+        text = (update.message.text or "").strip()
 
+        # Достаем ID объявления из контекста
+        ad_id = context.user_data.get('current_ad_id')
+        log.info(f"User {user_id} sent text for ad {ad_id}")
+
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Проверяем длину текста
+        if len(text) > 1000:
+            await update.message.reply_text("Слишком длинно. Сократите до 1000 символов.")
+            return TEXT
+
+        # Проверяем текст автоматической модерацией
+        ok, reason = auto_moderate(text)
+        if not ok:
+            await update.message.reply_text(f"Текст не прошел проверку: {reason}\nПопробуйте отправить другой текст.")
+            return TEXT
+
+        # ОБНОВЛЯЕМ ТЕКСТ ОБЪЯВЛЕНИЯ В БАЗЕ ДАННЫХ
+        success = update_ad_text(ad_id, user_id, text)
+        
+        if not success:
+            log.error(f"Failed to update text in DB for ad {ad_id}. User {user_id}")
+            await update.message.reply_text("Произошла ошибка при сохранении. Попробуйте снова: /new")
+            return ConversationHandler.END
+
+        log.info(f"Text for ad {ad_id} updated successfully.")
+        
+        # Сообщение и логика остаются прежними
+        await update.message.reply_text(
+            f"Текст принят.\nТеперь отправьте до {MAX_PHOTOS} фото по одному. "
+            "Когда хватит — /done. Если без фото — /skip."
+        )
+        return PHOTOS
+
+    except Exception as e:
+        log.error(f"Error in on_text: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла непредвиденная ошибка. Попробуйте начать заново командой /new")
+        return ConversationHandler.END
+        
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     if uid not in pending:
@@ -619,6 +655,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

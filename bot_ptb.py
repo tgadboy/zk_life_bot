@@ -54,7 +54,11 @@ log = logging.getLogger("baraholka")
 (CATEGORY, TEXT, PHOTOS, CONTACT, CONFIRM, PAYMENT) = range(6)
 
 # Память для черновиков (MVP без БД)
-pending: Dict[int, Dict] = {}  # user_id -> {category, text, photos, contact, paid}
+# ... другие импорты ...
+from database import (
+    create_ad, get_ad, update_ad_text, set_ad_photos,
+    set_ad_contact, set_ad_paid, set_ad_published, delete_ad
+)
 
 # ===== КНОПКИ МЕНЮ (reply клавиатура) =====
 BTN_SELL        = "💰 Продать"
@@ -324,8 +328,11 @@ async def game_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==== ОСНОВНОЙ ФУНКЦИОНАЛ ОБЪЯВЛЕНИЙ ====
 async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    pending[uid] = {"category": None, "text": "", "photos": [], "contact": "", "paid": False}
+    user = update.effective_user
+    # Создаем новое объявление в БД и сохраняем его ID в данные контекста (context.user_data)
+    ad_id = create_ad(user.id, None)  # Категория пока None
+    context.user_data['current_ad_id'] = ad_id  # Сохраняем ID объявления для этого пользователя
+
     kb = [
         [InlineKeyboardButton("Продажа", callback_data="cat_sale")],
         [InlineKeyboardButton("Услуги", callback_data="cat_service")],
@@ -339,10 +346,14 @@ async def cmd_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    uid = q.from_user.id
-    if uid not in pending:
-        await q.edit_message_text("Сначала /new")
+    user = q.from_user
+
+    # Достаем ID объявления из контекста
+    ad_id = context.user_data.get('current_ad_id')
+    if not ad_id:
+        await q.edit_message_text("Сессия истекла. Начните заново: /new")
         return ConversationHandler.END
+
     cat_map = {
         "cat_sale": "Продажа",
         "cat_service": "Услуги",
@@ -350,9 +361,21 @@ async def on_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "cat_free": "Отдам/Обмен",
         "cat_other": "Другое",
     }
-    pending[uid]["category"] = cat_map.get(q.data, "Другое")
+    selected_category = cat_map.get(q.data, "Другое")
+
+    # Вместо того чтобы обновлять словарь `pending`, обновляем запись в БД
+    # Для этого нам пока не хватает функции update_ad_category, но мы можем сделать так:
+    conn = sqlite3.connect('baraholka.db')
+    cursor = conn.cursor()
+    cursor.execute(
+        'UPDATE ads SET category = ? WHERE id = ? AND user_id = ?',
+        (selected_category, ad_id, user.id)
+    )
+    conn.commit()
+    conn.close()
+
     await q.edit_message_text(
-        f"Категория: {pending[uid]['category']}\n\nНапишите текст объявления (до 1000 символов)."
+        f"Категория: {selected_category}\n\nНапишите текст объявления (до 1000 символов)."
     )
     return TEXT
 
@@ -574,6 +597,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

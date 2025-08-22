@@ -508,7 +508,7 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         log.error(f"Error in on_photo: {str(e)}", exc_info=True)
-        await update.message.reply_text("😕 Ошибка при обработке фото. Попробуйте еще раз загрузить фото или начните заново /new")
+        await update.message.reply_text("😕 Ошибка при обработке фото. Попробуй еще раз загрузить фото или начните заново /new")
         return PHOTOS
 
 async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -522,14 +522,14 @@ async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
 
         await update.message.reply_text(
-            "📞 Теперь укажите контакт для связи (телефон или @username).\n"
-            "Или отправьте /me чтобы использовать ваш Telegram username."
+            "📞 Теперь укажи контакт для связи (твой ник в телеграме, например @zk_life_bot ).\n"
+            "Или отправь /me чтобы использовать твой Telegram username."
         )
         return CONTACT
 
     except Exception as e:
         log.error(f"Error in on_photos_done: {str(e)}", exc_info=True)
-        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
+        await update.message.reply_text("😕 Произошла ошибка. Попробуй начать заново: /new")
         return ConversationHandler.END
 
 async def on_photos_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -539,7 +539,7 @@ async def on_photos_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         ad_id = context.user_data.get('current_ad_id')
         if not ad_id:
-            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            await update.message.reply_text("Сессия истекла. Начни заново: /new")
             return ConversationHandler.END
 
         # Явно устанавливаем пустой список фото в БД
@@ -548,51 +548,121 @@ async def on_photos_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.warning(f"Failed to set empty photos for ad {ad_id}")
 
         await update.message.reply_text(
-            "📞 Фото пропущены. Укажите контакт для связи (телефон или @username).\n"
-            "Или отправьте /me чтобы использовать ваш Telegram username."
+            "📞 Фото пропущены. Укажи контакт для связи (твой ник в телеграме, например @zk_life_bot ).\n"
+            "Или отправь /me чтобы использовать твой Telegram username."
         )
         return CONTACT
 
     except Exception as e:
         log.error(f"Error in on_photos_skip: {str(e)}", exc_info=True)
-        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
+        await update.message.reply_text("😕 Произошла ошибка. Попробуй начать заново: /new")
         return ConversationHandler.END
 
 async def on_contact_me(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начни заново: /new")
+            return ConversationHandler.END
+
+        # Используем username пользователя
+        username = user.username
+        contact = f"@{username}" if username else f"ID: {user_id}"
+        
+        # Сохраняем контакт в БД
+        success = set_ad_contact(ad_id, user_id, contact)
+        
+        if not success:
+            await update.message.reply_text("❌ Ошибка при сохранении контакта. Попробуй снова.")
+            return CONTACT
+
+        log.info(f"Contact set to {contact} for ad {ad_id}")
+        return await confirm_preview(update, context)
+
+    except Exception as e:
+        log.error(f"Error in on_contact_me: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла ошибка. Попробуй ещё раз: /new")
         return ConversationHandler.END
-    username = update.effective_user.username
-    pending[uid]["contact"] = f"@{username}" if username else str(uid)
-    return await confirm_preview(update, context)
 
 async def on_contact_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    if uid not in pending:
-        await update.message.reply_text("Сначала /new")
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начни заново: /new")
+            return ConversationHandler.END
+
+        contact = (update.message.text or "").strip()
+        
+        # Простая валидация контакта
+        if not contact or len(contact) < 3:
+            await update.message.reply_text("❌ Слишком короткий контакт. Введи твой ник @username.")
+            return CONTACT
+
+        # Сохраняем контакт в БД
+        success = set_ad_contact(ad_id, user_id, contact)
+        
+        if not success:
+            await update.message.reply_text("❌ Ошибка при сохранении контакта. Попробуй снова.")
+            return CONTACT
+
+        log.info(f"Contact set to {contact} for ad {ad_id}")
+        return await confirm_preview(update, context)
+
+    except Exception as e:
+        log.error(f"Error in on_contact_text: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла ошибка. Попробуй начать заново: /new")
         return ConversationHandler.END
-    pending[uid]["contact"] = (update.message.text or "").strip()
-    return await confirm_preview(update, context)
 
 async def confirm_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    uid = update.effective_user.id
-    data = pending[uid]
-    preview = (
-        f"Категория: {data['category']}\n\n"
-        f"{data['text']}\n\n"
-        f"Контакт: {data['contact']}\n"
-        f"Фото: {len(data['photos'])} шт."
-    )
-    buttons = [[InlineKeyboardButton("✅ Отправить бесплатно (в очередь)", callback_data="post_free")]]
-    if PROVIDER_TOKEN:
-        buttons.append([InlineKeyboardButton("⚡ Приоритет (платно)", callback_data="post_paid")])
-    buttons.append([InlineKeyboardButton("❌ Отмена", callback_data="post_cancel")])
-    await update.message.reply_text(
-        "Предпросмотр объявления:\n\n" + preview,
-        reply_markup=InlineKeyboardMarkup(buttons),
-    )
-    return CONFIRM
+    try:
+        user = update.effective_user
+        user_id = user.id
+        
+        ad_id = context.user_data.get('current_ad_id')
+        if not ad_id:
+            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Получаем данные объявления из БД
+        ad_data = get_ad(ad_id, user_id)
+        if not ad_data:
+            await update.message.reply_text("Объявление не найдено. Начните заново: /new")
+            return ConversationHandler.END
+
+        # Формируем превью
+        preview = (
+            f"📋 <b>Предпросмотр объявления:</b>\n\n"
+            f"🏷️ <b>Категория:</b> {ad_data['category']}\n\n"
+            f"📄 <b>Описание:</b> {ad_data['text']}\n\n"
+            f"👤 <b>Контакт:</b> {ad_data['contact']}\n"
+            f"🖼️ <b>Фото:</b> {len(ad_data['photos'].split(',')) if ad_data['photos'] else 0} шт."
+        )
+
+        # Создаем кнопки
+        buttons = [[InlineKeyboardButton("✅ Отправить бесплатно (в очередь)", callback_data="post_free")]]
+        
+        if PROVIDER_TOKEN:
+            buttons.append([InlineKeyboardButton("⚡ Приоритет (платно)", callback_data="post_paid")])
+        
+        buttons.append([InlineKeyboardButton("❌ Отмена", callback_data="post_cancel")])
+
+        await update.message.reply_text(
+            preview,
+            reply_markup=InlineKeyboardMarkup(buttons),
+            parse_mode="HTML"
+        )
+        return CONFIRM
+
+    except Exception as e:
+        log.error(f"Error in confirm_preview: {str(e)}", exc_info=True)
+        await update.message.reply_text("😕 Произошла ошибка. Попробуйте начать заново: /new")
+        return ConversationHandler.END
 
 async def on_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -775,6 +845,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

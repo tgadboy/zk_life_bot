@@ -522,8 +522,9 @@ async def on_photos_done(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
 
         await update.message.reply_text(
-            "📞 Теперь укажи контакт для связи (твой ник в телеграме, например @zk_life_bot ).\n"
-            "Или отправь /me чтобы использовать твой Telegram username."
+            "✅ Теперь укажи контакт для связи.\n" 
+            (твой ник в телеграме, например @zk_life_bot )\n\n"
+            "Или отправь /me чтобы я автоматически ввёл твой Telegram username."
         )
         return CONTACT
 
@@ -548,8 +549,8 @@ async def on_photos_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
             log.warning(f"Failed to set empty photos for ad {ad_id}")
 
         await update.message.reply_text(
-            "📞 Фото пропущены. Укажи контакт для связи (твой ник в телеграме, например @zk_life_bot ).\n"
-            "Или отправь /me чтобы использовать твой Telegram username."
+            "✅ Фото пропущены. Укажи контакт для связи (твой ник в телеграме, например @zk_life_bot ).\n"
+            "Или отправь /me чтобы я автоматически ввёл твой Telegram username."
         )
         return CONTACT
 
@@ -626,26 +627,26 @@ async def confirm_preview(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         ad_id = context.user_data.get('current_ad_id')
         if not ad_id:
-            await update.message.reply_text("Сессия истекла. Начните заново: /new")
+            await update.message.reply_text("Сессия истекла. Начни заново: /new")
             return ConversationHandler.END
 
         # Получаем данные объявления из БД
         ad_data = get_ad(ad_id, user_id)
         if not ad_data:
-            await update.message.reply_text("Объявление не найдено. Начните заново: /new")
+            await update.message.reply_text("Объявление не найдено. Начни заново: /new")
             return ConversationHandler.END
 
         # Формируем превью
         preview = (
-            f"📋 <b>Предпросмотр объявления:</b>\n\n"
-            f"🏷️ <b>Категория:</b> {ad_data['category']}\n\n"
-            f"📄 <b>Описание:</b> {ad_data['text']}\n\n"
-            f"👤 <b>Контакт:</b> {ad_data['contact']}\n"
-            f"🖼️ <b>Фото:</b> {len(ad_data['photos'].split(',')) if ad_data['photos'] else 0} шт."
+            f"<b>Предпросмотр объявления:</b>\n\n"
+            f"🏷️ Категория: {ad_data['category']}\n\n"
+            f"📄 Описание: {ad_data['text']}\n\n"
+            f"👤 Контакт: {ad_data['contact']}\n\n"
+            f"🖼️ Фото: {len(ad_data['photos'].split(',')) if ad_data['photos'] else 0} шт."
         )
 
         # Создаем кнопки
-        buttons = [[InlineKeyboardButton("✅ Отправить бесплатно (в очередь)", callback_data="post_free")]]
+        buttons = [[InlineKeyboardButton("✅ Отправить бесплатно", callback_data="post_free")]]
         
         if PROVIDER_TOKEN:
             buttons.append([InlineKeyboardButton("⚡ Приоритет (платно)", callback_data="post_paid")])
@@ -845,6 +846,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -927,7 +927,7 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("new", cmd_new)],
         states={
-            CATEGORY: [CallbackQueryHandler(on_category)],
+            CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_category)],
             TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, on_text)],
             PHOTOS: [
                 MessageHandler(filters.PHOTO, on_photo),
@@ -966,6 +966,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
